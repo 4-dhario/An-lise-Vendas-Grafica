@@ -1,344 +1,490 @@
 
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-from pathlib import Path
+from supabase import create_client
 
 st.set_page_config(
-    page_title="Análise de Vendas | Gráfica",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="auto"
+    page_title="Gestão de Gráfica",
+    page_icon="🖨️",
+    layout="wide"
 )
 
-# ---------- ESTILO RESPONSIVO ----------
-st.markdown("""
-<style>
-.block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 2rem;
-    padding-left: min(5%, 2rem);
-    padding-right: min(5%, 2rem);
-}
-h1 {
-    font-size: clamp(1.6rem, 4vw, 2.5rem);
-}
-[data-testid="stMetric"] {
-    border: 1px solid rgba(128,128,128,0.25);
-    padding: 12px;
-    border-radius: 12px;
-}
-</style>
-""", unsafe_allow_html=True)
+st.title("🖨️ Sistema de Gestão da Gráfica")
+st.caption("Gestão comercial e análise de vendas")
 
+# Ligação à base de dados
+@st.cache_resource
+def obter_cliente():
+    return create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_KEY"]
+    )
 
-# ---------- CONFIGURAÇÃO ----------
-COLUNAS = [
-    "data", "servico", "quantidade", "preco_unitario"
-]
-
-st.title("📊 Sistema de Análise de Vendas")
-st.caption("Gráfica e Design | Painel estatístico")
-
-st.sidebar.header("Menu de análise")
-
-pagina = st.sidebar.radio(
-    "Seleciona uma opção",
-    [
-        "Painel geral",
-        "Consultar vendas",
-        "Sobre o sistema"
-    ]
-)
-
-ficheiro = st.sidebar.file_uploader(
-    "Importar ficheiro CSV",
-    type=["csv"]
-)
-
-
-# ---------- DADOS DE EXEMPLO ----------
-def dados_exemplo():
-    return pd.DataFrame({
-        "data": [
-            "2026-01-05", "2026-01-12",
-            "2026-02-03", "2026-02-15",
-            "2026-03-02", "2026-03-10",
-            "2026-04-04", "2026-04-18",
-            "2026-05-06", "2026-05-20"
-        ],
-        "servico": [
-            "Flyers", "Cartões de visita",
-            "Logótipos", "Banners",
-            "Flyers", "Logótipos",
-            "Banners", "Cartões de visita",
-            "Flyers", "Banners"
-        ],
-        "quantidade": [
-            100, 200, 2, 3, 150,
-            1, 4, 250, 300, 2
-        ],
-        "preco_unitario": [
-            50, 20, 15000, 12000, 45,
-            18000, 10000, 18, 40, 14000
-        ]
-    })
-
-
-# ---------- CARREGAMENTO E VALIDAÇÃO ----------
 try:
-    if ficheiro is not None:
-        df = pd.read_csv(ficheiro)
-    elif Path("vendas_grafica.csv").exists():
-        df = pd.read_csv("vendas_grafica.csv")
-    else:
-        df = dados_exemplo()
-        st.info(
-            "A utilizar dados de exemplo simulados. "
-            "Importa o teu CSV para analisar outros dados."
-        )
-
-    df.columns = df.columns.str.strip().str.lower()
-
-    if not set(COLUNAS).issubset(df.columns):
-        st.error(
-            "O CSV deve conter as colunas: data, servico, "
-            "quantidade e preco_unitario."
-        )
-        st.stop()
-
-    df = df[COLUNAS].copy()
-    df["data"] = pd.to_datetime(df["data"], errors="coerce")
-    df["quantidade"] = pd.to_numeric(
-        df["quantidade"], errors="coerce"
+    if "supabase" not in st.session_state:
+        st.session_state.supabase = obter_cliente()
+    sb = st.session_state.supabase
+except Exception:
+    st.error(
+        "Não foi possível ligar ao Supabase. "
+        "Confirma as variáveis SUPABASE_URL e SUPABASE_KEY "
+        "nas definições Secrets do Streamlit Cloud."
     )
-    df["preco_unitario"] = pd.to_numeric(
-        df["preco_unitario"], errors="coerce"
+    st.stop()
+
+# Autenticação
+if "utilizador" not in st.session_state:
+    st.session_state.utilizador = None
+
+if st.session_state.utilizador is None:
+    st.subheader("Iniciar sessão")
+
+    with st.form("login"):
+        email = st.text_input("E-mail")
+        senha = st.text_input("Palavra-passe", type="password")
+        entrar = st.form_submit_button("Entrar", use_container_width=True)
+
+    if entrar:
+        try:
+            resposta = sb.auth.sign_in_with_password({
+                "email": email.strip(),
+                "password": senha
+            })
+            st.session_state.utilizador = resposta.user
+            st.rerun()
+        except Exception:
+            st.error("Não foi possível iniciar sessão. Verifica os dados e tenta novamente.")
+
+    st.info(
+        "Utiliza uma conta criada em Supabase → Authentication → Users. "
+        "A conta também precisa de estar associada a uma empresa."
     )
-    df["servico"] = df["servico"].astype("string").str.strip()
+    st.stop()
 
-    if df.empty:
-        st.warning("O ficheiro não contém vendas.")
-        st.stop()
+# Confirmar a sessão atual
+try:
+    utilizador = sb.auth.get_user().user
+    if utilizador is None:
+        raise Exception("Sessão inválida")
+    st.session_state.utilizador = utilizador
+except Exception:
+    st.session_state.utilizador = None
+    st.warning("A sessão expirou. Inicia sessão novamente.")
+    st.stop()
 
-    if df.isna().any().any():
-        st.error(
-            "Foram encontrados campos vazios ou inválidos. "
-            "Corrige o CSV e tenta novamente."
-        )
-        st.stop()
+user_id = utilizador.id
 
-    if (df["servico"] == "").any():
-        st.error("Existe um serviço sem nome.")
-        st.stop()
-
-    if (df["quantidade"] <= 0).any():
-        st.error("As quantidades devem ser superiores a zero.")
-        st.stop()
-
-    if (df["preco_unitario"] <= 0).any():
-        st.error("Os preços devem ser superiores a zero.")
-        st.stop()
-
-    df["valor_total"] = (
-        df["quantidade"] * df["preco_unitario"]
+# Carregar empresas às quais o utilizador pertence
+try:
+    membros = (
+        sb.table("membros_empresa")
+        .select("empresa_id,papel")
+        .eq("user_id", user_id)
+        .eq("ativo", True)
+        .execute()
+        .data
     )
-    df["mes"] = df["data"].dt.to_period("M").astype(str)
+
+    if not membros:
+        st.error("Esta conta ainda não está associada a uma empresa ativa.")
+        st.stop()
+
+    ids_empresas = list({m["empresa_id"] for m in membros})
+
+    empresas = (
+        sb.table("empresas")
+        .select("id,nome")
+        .in_("id", ids_empresas)
+        .eq("ativo", True)
+        .execute()
+        .data
+    )
+
+    if not empresas:
+        st.error("Não foi encontrada nenhuma empresa ativa acessível.")
+        st.stop()
 
 except Exception as erro:
-    st.error(f"Não foi possível carregar os dados: {erro}")
+    st.error(f"Não foi possível carregar as empresas: {erro}")
     st.stop()
 
+nomes_empresas = {e["nome"]: e["id"] for e in empresas}
 
-# ---------- FILTROS ----------
-st.sidebar.subheader("Filtros")
+with st.sidebar:
+    st.subheader("Conta")
+    st.caption(utilizador.email or "Utilizador autenticado")
 
-servicos = sorted(df["servico"].unique().tolist())
+    empresa_nome = st.selectbox(
+        "Empresa",
+        list(nomes_empresas.keys())
+    )
+    empresa_id = nomes_empresas[empresa_nome]
 
-servicos_escolhidos = st.sidebar.multiselect(
-    "Serviços",
-    options=servicos,
-    default=servicos
-)
+    if st.button("Terminar sessão", use_container_width=True):
+        try:
+            sb.auth.sign_out()
+        finally:
+            st.session_state.utilizador = None
+            st.rerun()
 
-data_min = df["data"].min().date()
-data_max = df["data"].max().date()
+# Carregar filiais autorizadas
+try:
+    filiais = (
+        sb.table("filiais")
+        .select("id,nome,codigo")
+        .eq("empresa_id", empresa_id)
+        .eq("ativo", True)
+        .execute()
+        .data
+    )
+except Exception as erro:
+    st.error(f"Não foi possível carregar as filiais: {erro}")
+    st.stop()
 
-periodo = st.sidebar.date_input(
-    "Período de análise",
-    value=(data_min, data_max),
-    min_value=data_min,
-    max_value=data_max
-)
-
-filtrado = df[df["servico"].isin(servicos_escolhidos)].copy()
-
-if isinstance(periodo, (tuple, list)) and len(periodo) == 2:
-    inicio, fim = periodo
-    filtrado = filtrado[
-        filtrado["data"].dt.date.between(inicio, fim)
-    ]
-
-if filtrado.empty:
+if not filiais:
     st.warning(
-        "Não existem vendas para os filtros selecionados."
+        "Não existe uma filial ativa acessível para esta empresa. "
+        "Cria uma filial e atribui-a ao utilizador através das regras administrativas."
     )
     st.stop()
 
+opcoes_filiais = {
+    f"{f['nome']} ({f['codigo']})": f["id"]
+    for f in filiais
+}
 
-# ---------- PAINEL GERAL ----------
-if pagina == "Painel geral":
-    st.subheader("Resumo estatístico")
-
-    total_vendas = len(filtrado)
-    faturacao = filtrado["valor_total"].sum()
-    media = filtrado["valor_total"].mean()
-    unidades = filtrado["quantidade"].sum()
-
-    c1, c2 = st.columns(2)
-    c3, c4 = st.columns(2)
-
-    c1.metric("Número de vendas", f"{total_vendas:,}")
-    c2.metric("Faturação total", f"{faturacao:,.2f}")
-    c3.metric("Venda média", f"{media:,.2f}")
-    c4.metric("Quantidade vendida", f"{unidades:,.0f}")
-
-    st.divider()
-    st.subheader("Análise gráfica")
-
-    por_servico = (
-        filtrado.groupby("servico", as_index=False)["valor_total"]
-        .sum()
-        .sort_values("valor_total", ascending=False)
+with st.sidebar:
+    filial_nome = st.selectbox(
+        "Filial",
+        list(opcoes_filiais.keys())
     )
 
-    por_mes = (
-        filtrado.groupby("mes", as_index=False)["valor_total"]
-        .sum()
-        .sort_values("mes")
-    )
+filial_id = opcoes_filiais[filial_nome]
 
-    st.markdown("**Faturação por serviço**")
-    grafico_servicos = px.bar(
-        por_servico,
-        x="servico",
-        y="valor_total",
-        labels={
-            "servico": "Serviço",
-            "valor_total": "Faturação"
-        },
-        title="Comparação da faturação por serviço"
-    )
-    grafico_servicos.update_layout(
-        autosize=True,
-        margin=dict(l=10, r=10, t=50, b=10)
-    )
-    st.plotly_chart(
-        grafico_servicos,
-        use_container_width=True
-    )
-
-    st.markdown("**Evolução mensal**")
-    grafico_mensal = px.line(
-        por_mes,
-        x="mes",
-        y="valor_total",
-        markers=True,
-        labels={
-            "mes": "Mês",
-            "valor_total": "Faturação"
-        },
-        title="Faturação ao longo dos meses"
-    )
-    grafico_mensal.update_layout(
-        autosize=True,
-        margin=dict(l=10, r=10, t=50, b=10)
-    )
-    st.plotly_chart(
-        grafico_mensal,
-        use_container_width=True
-    )
-
-    st.subheader("Principais resultados")
-
-    melhor = por_servico.iloc[0]
-
-    st.write(
-        f"O serviço com maior faturação no período selecionado "
-        f"foi **{melhor['servico']}**, com "
-        f"**{melhor['valor_total']:,.2f}**."
-    )
-
-    st.caption(
-        "Os indicadores dependem dos dados e filtros selecionados. "
-        "A faturação não corresponde necessariamente ao lucro."
-    )
-
-
-# ---------- CONSULTAR VENDAS ----------
-elif pagina == "Consultar vendas":
-    st.subheader("Registo de vendas")
-
-    tabela = filtrado[
-        [
-            "data", "servico", "quantidade",
-            "preco_unitario", "valor_total"
-        ]
-    ].sort_values("data", ascending=False).copy()
-
-    tabela["data"] = tabela["data"].dt.strftime("%Y-%m-%d")
-
-    tabela = tabela.rename(columns={
-        "data": "Data",
-        "servico": "Serviço",
-        "quantidade": "Quantidade",
-        "preco_unitario": "Preço unitário",
-        "valor_total": "Valor total"
-    })
-
-    st.dataframe(
-        tabela,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    csv_saida = tabela.to_csv(
-        index=False
-    ).encode("utf-8-sig")
-
-    st.download_button(
-        "Descarregar vendas filtradas",
-        data=csv_saida,
-        file_name="vendas_analisadas.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-
-    st.write(f"Registos apresentados: {len(tabela)}")
-
-
-# ---------- SOBRE ----------
-elif pagina == "Sobre o sistema":
-    st.subheader("Sobre o projeto")
-
-    st.write("""
-    Este sistema foi desenvolvido em Python para apoiar a análise
-    estatística das vendas de uma gráfica e empresa de design.
-
-    Funcionalidades:
-    - Cálculo de indicadores de vendas;
-    - Análise da faturação por serviço;
-    - Análise mensal;
-    - Filtragem por serviço e período;
-    - Consulta e exportação de dados.
-    """)
-
-    st.warning(
-        "Os dados de exemplo são simulados e servem apenas "
-        "para demonstrar o funcionamento do sistema."
-    )
+# Papel do utilizador nesta empresa
+papeis = [m["papel"] for m in membros if m["empresa_id"] == empresa_id]
+papel = papeis[0] if papeis else ""
 
 st.divider()
-st.caption(
-    "Projeto académico | Sistema de análise estatística de vendas"
+
+pagina = st.radio(
+    "Menu",
+    [
+        "Painel",
+        "Clientes",
+        "Produtos e serviços",
+        "Nova venda",
+        "Vendas",
+        "Relatórios"
+    ],
+    horizontal=True
 )
+
+# PAINEL
+if pagina == "Painel":
+    st.header("Painel de controlo")
+
+    try:
+        vendas = (
+            sb.table("vendas")
+            .select("id,numero,estado,criado_em")
+            .eq("empresa_id", empresa_id)
+            .eq("filial_id", filial_id)
+            .execute()
+            .data
+        )
+
+        df = pd.DataFrame(vendas)
+
+        if df.empty:
+            st.info("Ainda não existem vendas registadas nesta filial.")
+        else:
+            total_vendas = len(df)
+            pendentes = int((df["estado"] == "pendente").sum())
+            concluidas = int((df["estado"] == "concluida").sum())
+
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Número de vendas", total_vendas)
+            c2.metric("Pendentes", pendentes)
+            c3.metric("Concluídas", concluidas)
+
+            df["criado_em"] = pd.to_datetime(
+                df["criado_em"], errors="coerce"
+            )
+            df["dia"] = df["criado_em"].dt.date
+
+            st.subheader("Vendas por dia")
+            por_dia = (
+                df.dropna(subset=["dia"])
+                .groupby("dia")
+                .size()
+                .reset_index(name="Quantidade")
+            )
+            if not por_dia.empty:
+                st.line_chart(
+                    por_dia.set_index("dia")["Quantidade"]
+                )
+
+            st.subheader("Estado das vendas")
+            st.bar_chart(df["estado"].value_counts())
+
+    except Exception as erro:
+        st.error(f"Erro ao carregar o painel: {erro}")
+
+# CLIENTES
+elif pagina == "Clientes":
+    st.header("Gestão de clientes")
+
+    with st.form("novo_cliente", clear_on_submit=True):
+        nome = st.text_input("Nome do cliente *")
+        telefone = st.text_input("Telefone")
+        email_cliente = st.text_input("E-mail do cliente")
+        endereco = st.text_input("Endereço")
+        guardar = st.form_submit_button("Registar cliente")
+
+    if guardar:
+        if not nome.strip():
+            st.error("O nome do cliente é obrigatório.")
+        else:
+            try:
+                sb.table("clientes").insert({
+                    "empresa_id": empresa_id,
+                    "nome": nome.strip(),
+                    "telefone": telefone.strip() or None,
+                    "email": email_cliente.strip() or None,
+                    "endereco": endereco.strip() or None,
+                    "criado_por": user_id
+                }).execute()
+                st.success("Cliente registado com sucesso.")
+                st.rerun()
+            except Exception as erro:
+                st.error(f"Não foi possível registar o cliente: {erro}")
+
+    try:
+        clientes = (
+            sb.table("clientes")
+            .select("id,nome,telefone,email,endereco")
+            .eq("empresa_id", empresa_id)
+            .eq("ativo", True)
+            .order("nome")
+            .execute()
+            .data
+        )
+        st.subheader("Clientes registados")
+        st.dataframe(
+            pd.DataFrame(clientes),
+            use_container_width=True,
+            hide_index=True
+        )
+    except Exception as erro:
+        st.error(f"Erro ao consultar clientes: {erro}")
+
+# PRODUTOS E SERVIÇOS
+elif pagina == "Produtos e serviços":
+    st.header("Catálogo")
+
+    if papel in ["administrador_empresa", "administrador_sistema"]:
+        with st.form("novo_produto", clear_on_submit=True):
+            nome_produto = st.text_input("Nome do produto ou serviço *")
+            descricao = st.text_input("Descrição")
+            categoria = st.selectbox(
+                "Categoria",
+                ["produto", "servico", "material"]
+            )
+            preco = st.number_input(
+                "Preço base (AOA)",
+                min_value=0.0,
+                step=100.0
+            )
+            guardar_produto = st.form_submit_button("Adicionar ao catálogo")
+
+        if guardar_produto:
+            if not nome_produto.strip():
+                st.error("O nome é obrigatório.")
+            else:
+                try:
+                    sb.table("produtos_servicos").insert({
+                        "empresa_id": empresa_id,
+                        "nome": nome_produto.strip(),
+                        "descricao": descricao.strip() or None,
+                        "categoria": categoria,
+                        "preco_base": preco
+                    }).execute()
+                    st.success("Item adicionado ao catálogo.")
+                    st.rerun()
+                except Exception as erro:
+                    st.error(f"Não foi possível guardar: {erro}")
+    else:
+        st.info("Apenas administradores da empresa podem gerir o catálogo.")
+
+    try:
+        catalogo = (
+            sb.table("produtos_servicos")
+            .select("nome,descricao,categoria,preco_base,ativo")
+            .eq("empresa_id", empresa_id)
+            .eq("ativo", True)
+            .order("nome")
+            .execute()
+            .data
+        )
+        st.dataframe(
+            pd.DataFrame(catalogo),
+            use_container_width=True,
+            hide_index=True
+        )
+    except Exception as erro:
+        st.error(f"Erro ao consultar o catálogo: {erro}")
+
+# NOVA VENDA
+elif pagina == "Nova venda":
+    st.header("Registar venda")
+
+    try:
+        clientes = (
+            sb.table("clientes")
+            .select("id,nome")
+            .eq("empresa_id", empresa_id)
+            .eq("ativo", True)
+            .order("nome")
+            .execute()
+            .data
+        )
+
+        opcoes_clientes = {"Sem cliente associado": None}
+        opcoes_clientes.update({c["nome"]: c["id"] for c in clientes})
+
+        with st.form("registar_venda", clear_on_submit=True):
+            cliente_nome = st.selectbox(
+                "Cliente",
+                list(opcoes_clientes.keys())
+            )
+            descricao_item = st.text_input("Descrição do item vendido *")
+            quantidade = st.number_input(
+                "Quantidade", min_value=0.01, value=1.0, step=1.0
+            )
+            preco_unitario = st.number_input(
+                "Preço unitário (AOA)",
+                min_value=0.0,
+                step=100.0
+            )
+            desconto = st.number_input(
+                "Desconto total do item (AOA)",
+                min_value=0.0,
+                step=100.0
+            )
+            observacoes = st.text_area("Observações")
+            confirmar = st.form_submit_button("Registar venda")
+
+        if confirmar:
+            if not descricao_item.strip():
+                st.error("A descrição do item é obrigatória.")
+            elif desconto > quantidade * preco_unitario:
+                st.error("O desconto não pode ultrapassar o valor do item.")
+            else:
+                try:
+                    resultado = sb.rpc("criar_venda", {
+                        "p_empresa_id": empresa_id,
+                        "p_filial_id": filial_id,
+                        "p_cliente_id": opcoes_clientes[cliente_nome],
+                        "p_descricao": descricao_item.strip(),
+                        "p_quantidade": quantidade,
+                        "p_preco_unitario": preco_unitario,
+                        "p_desconto": desconto,
+                        "p_observacoes": observacoes.strip() or None
+                    }).execute()
+
+                    st.success(
+                        "Venda registada com sucesso. "
+                        f"Referência interna: {resultado.data}"
+                    )
+                except Exception as erro:
+                    st.error(f"Não foi possível registar a venda: {erro}")
+
+    except Exception as erro:
+        st.error(f"Erro ao preparar o formulário: {erro}")
+
+# CONSULTA DE VENDAS
+elif pagina == "Vendas":
+    st.header("Consulta de vendas")
+
+    try:
+        vendas = (
+            sb.table("vendas")
+            .select(
+                "id,numero,estado,moeda,criado_em,observacoes,"
+                "itens_venda(descricao,quantidade,preco_unitario,desconto)"
+            )
+            .eq("empresa_id", empresa_id)
+            .eq("filial_id", filial_id)
+            .order("criado_em", desc=True)
+            .execute()
+            .data
+        )
+
+        linhas = []
+        for venda in vendas:
+            total = sum(
+                float(item["quantidade"]) * float(item["preco_unitario"])
+                - float(item["desconto"])
+                for item in (venda.get("itens_venda") or [])
+            )
+            linhas.append({
+                "Número": venda["numero"],
+                "Estado": venda["estado"],
+                "Data": venda["criado_em"],
+                "Total (AOA)": total,
+                "Observações": venda.get("observacoes")
+            })
+
+        st.dataframe(
+            pd.DataFrame(linhas),
+            use_container_width=True,
+            hide_index=True
+        )
+    except Exception as erro:
+        st.error(
+            "Não foi possível consultar as vendas. "
+            "Confirma as permissões de leitura das vendas e dos itens. "
+            f"Detalhe: {erro}"
+        )
+
+# RELATÓRIOS
+elif pagina == "Relatórios":
+    st.header("Relatórios")
+
+    try:
+        vendas = (
+            sb.table("vendas")
+            .select("id,numero,estado,criado_em")
+            .eq("empresa_id", empresa_id)
+            .eq("filial_id", filial_id)
+            .execute()
+            .data
+        )
+
+        df = pd.DataFrame(vendas)
+
+        if df.empty:
+            st.info("Não há dados suficientes para gerar relatórios.")
+        else:
+            st.metric("Vendas registadas", len(df))
+            st.subheader("Distribuição por estado")
+            st.dataframe(
+                df["estado"].value_counts().rename_axis("Estado")
+                .reset_index(name="Quantidade"),
+                use_container_width=True,
+                hide_index=True
+            )
+
+            csv = df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                "Descarregar relatório CSV",
+                data=csv,
+                file_name="relatorio_vendas.csv",
+                mime="text/csv"
+            )
+    except Exception as erro:
+        st.error(f"Não foi possível gerar o relatório: {erro}")
+
+st.divider()
+st.caption("Sistema de Gestão e Análise de Vendas — versão inicial integrada")
