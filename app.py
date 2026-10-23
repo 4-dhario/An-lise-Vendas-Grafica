@@ -208,6 +208,7 @@ if st.session_state.utilizador is None:
                 "Não foi possível enviar o e-mail. "
                 "Verifica o endereço e tenta novamente."
             )
+            )
 
     st.info(
         "Utiliza uma conta criada em Supabase → "
