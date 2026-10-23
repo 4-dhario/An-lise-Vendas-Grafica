@@ -93,6 +93,57 @@ if isinstance(fragmento, str) and fragmento:
         )
 # Autenticação
 
+# Formulário de nova palavra-passe
+if st.session_state.modo_recuperacao:
+    st.subheader("Definir nova palavra-passe")
+
+    with st.form("nova_palavra_passe"):
+        nova_senha = st.text_input(
+            "Nova palavra-passe",
+            type="password"
+        )
+        confirmar_senha = st.text_input(
+            "Confirmar nova palavra-passe",
+            type="password"
+        )
+        guardar_senha = st.form_submit_button(
+            "Guardar nova palavra-passe",
+            use_container_width=True
+        )
+
+    if guardar_senha:
+        if len(nova_senha) < 8:
+            st.error(
+                "Utiliza uma palavra-passe com pelo menos "
+                "8 caracteres."
+            )
+        elif nova_senha != confirmar_senha:
+            st.error("As palavras-passe não coincidem.")
+        else:
+            try:
+                sb.auth.get_user()
+
+                sb.auth.update_user({
+                    "password": nova_senha
+                })
+
+                sb.auth.sign_out()
+                st.session_state.modo_recuperacao = False
+                st.session_state.utilizador = None
+
+                st.success(
+                    "Palavra-passe alterada. "
+                    "Já podes iniciar sessão."
+                )
+                st.rerun()
+
+            except Exception:
+                st.error(
+                    "Não foi possível alterar a palavra-passe. "
+                    "O link pode ter expirado. Solicita outro."
+                )
+
+    st.stop()
 if "utilizador" not in st.session_state:
     st.session_state.utilizador = None
 
