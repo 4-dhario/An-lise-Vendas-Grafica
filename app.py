@@ -187,23 +187,19 @@ if st.session_state.utilizador is None:
             use_container_width=True
         )
         
-if recuperar:
-    if not email_recuperacao.strip():
-        st.error("Introduz o endereço de e-mail da tua conta.")
-    else:
-        try:
-            sb.auth.reset_password_for_email(
-                email_recuperacao.strip(),
-                {
-                    "redirect_to":
-                    "https://an-lise-vendas-grafica-e6f8uiekuwqgjztv2h6hom.streamlit.app/"
-                }
-            )
-            st.success(
-                "Pedido enviado. Verifica a caixa de entrada "
-                "e a pasta de spam."
-            )
-                    except Exception as erro:
+    if recuperar:
+        if not email_recuperacao.strip():
+            st.error("Introduz o teu e-mail.")
+        else:
+            try:
+                sb.auth.reset_password_for_email(
+                    email_recuperacao.strip(),
+                    {
+                        "redirect_to": "https://an-lise-vendas-grafica-e6f8uiekuwqgjztv2h6hom.streamlit.app/"
+                    }
+                )
+                st.success("Verifica a tua caixa de entrada e a pasta de spam.")
+            except Exception as erro:
                 st.error("Erro ao recuperar a palavra-passe:")
                 st.code(str(erro))
             st.caption(
