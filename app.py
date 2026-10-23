@@ -36,9 +36,15 @@ except Exception:
     
 
 # Receber o link de recuperação no navegador
+
+# Recuperação de palavra-passe
 if "modo_recuperacao" not in st.session_state:
     st.session_state.modo_recuperacao = False
 
+if "utilizador" not in st.session_state:
+    st.session_state.utilizador = None
+
+# Ler os tokens do link de recuperação
 fragmento = st_javascript("""
 (() => {
     const hash = window.parent.location.hash;
@@ -48,13 +54,10 @@ fragmento = st_javascript("""
         return "";
     }
 
-    const dados = {
-        type: params.get("type"),
-        access_token: params.get("access_token"),
-        refresh_token: params.get("refresh_token")
-    };
+    const access = params.get("access_token");
+    const refresh = params.get("refresh_token");
 
-    if (!dados.access_token || !dados.refresh_token) {
+    if (!access || !refresh) {
         return "";
     }
 
@@ -65,27 +68,39 @@ fragmento = st_javascript("""
         window.parent.location.search
     );
 
-    return JSON.stringify(dados);
+    return JSON.stringify({
+        type: "recovery",
+        access_token: access,
+        refresh_token: refresh
+    });
 })()
 """)
 
 if isinstance(fragmento, str) and fragmento:
     try:
-        dados_recuperacao = json.loads(fragmento)
+        dados = json.loads(fragmento)
 
         if (
-            dados_recuperacao.get("type") == "recovery"
-            and dados_recuperacao.get("access_token")
-            and dados_recuperacao.get("refresh_token")
+            dados.get("type") == "recovery"
+            and dados.get("access_token")
+            and dados.get("refresh_token")
         ):
             sb.auth.set_session(
-                dados_recuperacao["access_token"],
-                dados_recuperacao["refresh_token"]
+                dados["access_token"],
+                dados["refresh_token"]
             )
             st.session_state.modo_recuperacao = True
-           
-# Redefinir palavra-passe
-if st.session_state.get("modo_recuperacao", False):
+            st.session_state.utilizador = None
+
+    except Exception:
+        st.session_state.modo_recuperacao = False
+        st.error(
+            "O link de recuperação é inválido ou expirou. "
+            "Solicita um novo e-mail."
+        )
+
+# Mostrar apenas um formulário de redefinição
+if st.session_state.modo_recuperacao:
     st.subheader("Definir nova palavra-passe")
 
     with st.form("form_nova_palavra_passe"):
@@ -111,24 +126,30 @@ if st.session_state.get("modo_recuperacao", False):
             st.error("As palavras-passe não coincidem.")
         else:
             try:
-                sb.auth.update_user(
-                    {"password": nova_senha}
-                )
+                # Confirmar que a sessão de recuperação é válida
+                sb.auth.get_user()
+
+                sb.auth.update_user({
+                    "password": nova_senha
+                })
+
                 sb.auth.sign_out()
                 st.session_state.modo_recuperacao = False
                 st.session_state.utilizador = None
+
                 st.success(
-                    "Palavra-passe alterada. "
+                    "Palavra-passe alterada com sucesso. "
                     "Já podes iniciar sessão."
                 )
                 st.rerun()
+
             except Exception:
                 st.error(
                     "Não foi possível alterar a palavra-passe. "
-                    "O link pode ter expirado."
+                    "O link pode ter expirado. Solicita outro."
                 )
 
-    st.stop() 
+    st.stop()
             st.session_state.utilizador = None
             st.rerun()
 
