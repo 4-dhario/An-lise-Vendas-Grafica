@@ -33,7 +33,64 @@ except Exception:
         "nas definições Secrets do Streamlit Cloud."
     )
     st.stop()
+    
 
+# Receber o link de recuperação no navegador
+if "modo_recuperacao" not in st.session_state:
+    st.session_state.modo_recuperacao = False
+
+fragmento = st_javascript("""
+(() => {
+    const hash = window.parent.location.hash;
+    const params = new URLSearchParams(hash.slice(1));
+
+    if (params.get("type") !== "recovery") {
+        return "";
+    }
+
+    const dados = {
+        type: params.get("type"),
+        access_token: params.get("access_token"),
+        refresh_token: params.get("refresh_token")
+    };
+
+    if (!dados.access_token || !dados.refresh_token) {
+        return "";
+    }
+
+    window.parent.history.replaceState(
+        null,
+        "",
+        window.parent.location.pathname +
+        window.parent.location.search
+    );
+
+    return JSON.stringify(dados);
+})()
+""")
+
+if isinstance(fragmento, str) and fragmento:
+    try:
+        dados_recuperacao = json.loads(fragmento)
+
+        if (
+            dados_recuperacao.get("type") == "recovery"
+            and dados_recuperacao.get("access_token")
+            and dados_recuperacao.get("refresh_token")
+        ):
+            sb.auth.set_session(
+                dados_recuperacao["access_token"],
+                dados_recuperacao["refresh_token"]
+            )
+            st.session_state.modo_recuperacao = True
+            st.session_state.utilizador = None
+            st.rerun()
+
+    except Exception:
+        st.error(
+            "O link de recuperação é inválido ou expirou. "
+            "Solicita um novo e-mail."
+        )
 # Autenticação
 
 if "utilizador" not in st.session_state:
