@@ -203,9 +203,9 @@ if recuperar:
                 "Pedido enviado. Verifica a caixa de entrada "
                 "e a pasta de spam."
             )
-        except Exception as erro:
-    st.error("Erro ao recuperar a palavra-passe:")
-    st.code(str(erro))
+                    except Exception as erro:
+                st.error("Erro ao recuperar a palavra-passe:")
+                st.code(str(erro))
             st.caption(
         except Exception:
             st.error(
