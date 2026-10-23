@@ -188,6 +188,11 @@ if st.session_state.utilizador is None:
         )
 
     if recuperar:
+        
+if recuperar:
+    if not email_recuperacao.strip():
+        st.error("Introduz o endereço de e-mail da tua conta.")
+    else:
         try:
             sb.auth.reset_password_for_email(
                 email_recuperacao.strip(),
@@ -197,8 +202,16 @@ if st.session_state.utilizador is None:
                 }
             )
             st.success(
-                "Se o e-mail estiver registado, "
-                "receberás as instruções de recuperação."
+                "Pedido enviado. Verifica a caixa de entrada "
+                "e a pasta de spam."
+            )
+        except Exception as erro:
+            st.error(
+                "O Supabase não conseguiu processar o pedido "
+                "de recuperação."
+            )
+            st.caption(
+                f"Detalhe técnico: {type(erro).__name__}"
             )
         except Exception:
             st.error(
