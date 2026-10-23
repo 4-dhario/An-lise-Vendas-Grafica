@@ -150,14 +150,6 @@ if st.session_state.modo_recuperacao:
                 )
 
     st.stop()
-            st.session_state.utilizador = None
-            st.rerun()
-
-    except Exception:
-        st.error(
-            "O link de recuperação é inválido ou expirou. "
-            "Solicita um novo e-mail."
-        )
 # Autenticação
 
 # Formulário de nova palavra-passe
