@@ -33,6 +33,7 @@ except Exception:
     st.stop()
 
 # Autenticação
+
 if "utilizador" not in st.session_state:
     st.session_state.utilizador = None
 
@@ -41,8 +42,14 @@ if st.session_state.utilizador is None:
 
     with st.form("login"):
         email = st.text_input("E-mail")
-        senha = st.text_input("Palavra-passe", type="password")
-        entrar = st.form_submit_button("Entrar", use_container_width=True)
+        senha = st.text_input(
+            "Palavra-passe",
+            type="password"
+        )
+        entrar = st.form_submit_button(
+            "Entrar",
+            use_container_width=True
+        )
 
     if entrar:
         try:
@@ -53,11 +60,46 @@ if st.session_state.utilizador is None:
             st.session_state.utilizador = resposta.user
             st.rerun()
         except Exception:
-            st.error("Não foi possível iniciar sessão. Verifica os dados e tenta novamente.")
+            st.error(
+                "Não foi possível iniciar sessão. "
+                "Verifica os dados e tenta novamente."
+            )
+
+    st.divider()
+    st.subheader("Esqueci-me da palavra-passe")
+
+    with st.form("recuperar_senha"):
+        email_recuperacao = st.text_input(
+            "E-mail da tua conta"
+        )
+        recuperar = st.form_submit_button(
+            "Enviar link de recuperação",
+            use_container_width=True
+        )
+
+    if recuperar:
+        try:
+            sb.auth.reset_password_for_email(
+                email_recuperacao.strip(),
+                {
+                    "redirect_to":
+                    "https://an-lise-vendas-grafica-e6f8uiekuwqgjztv2h6hom.streamlit.app/"
+                }
+            )
+            st.success(
+                "Se o e-mail estiver registado, "
+                "receberás as instruções de recuperação."
+            )
+        except Exception:
+            st.error(
+                "Não foi possível enviar o e-mail. "
+                "Verifica o endereço e tenta novamente."
+            )
 
     st.info(
-        "Utiliza uma conta criada em Supabase → Authentication → Users. "
-        "A conta também precisa de estar associada a uma empresa."
+        "Utiliza uma conta criada em Supabase → "
+        "Authentication → Users. A conta também "
+        "precisa de estar associada a uma empresa."
     )
     st.stop()
 
