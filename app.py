@@ -186,8 +186,6 @@ if st.session_state.utilizador is None:
             "Enviar link de recuperação",
             use_container_width=True
         )
-
-    if recuperar:
         
 if recuperar:
     if not email_recuperacao.strip():
