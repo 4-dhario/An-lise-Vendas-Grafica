@@ -83,6 +83,52 @@ if isinstance(fragmento, str) and fragmento:
                 dados_recuperacao["refresh_token"]
             )
             st.session_state.modo_recuperacao = True
+           
+# Redefinir palavra-passe
+if st.session_state.get("modo_recuperacao", False):
+    st.subheader("Definir nova palavra-passe")
+
+    with st.form("form_nova_palavra_passe"):
+        nova_senha = st.text_input(
+            "Nova palavra-passe",
+            type="password"
+        )
+        confirmar_senha = st.text_input(
+            "Confirmar nova palavra-passe",
+            type="password"
+        )
+        guardar = st.form_submit_button(
+            "Guardar nova palavra-passe",
+            use_container_width=True
+        )
+
+    if guardar:
+        if len(nova_senha) < 8:
+            st.error(
+                "A palavra-passe deve ter pelo menos 8 caracteres."
+            )
+        elif nova_senha != confirmar_senha:
+            st.error("As palavras-passe não coincidem.")
+        else:
+            try:
+                sb.auth.update_user(
+                    {"password": nova_senha}
+                )
+                sb.auth.sign_out()
+                st.session_state.modo_recuperacao = False
+                st.session_state.utilizador = None
+                st.success(
+                    "Palavra-passe alterada. "
+                    "Já podes iniciar sessão."
+                )
+                st.rerun()
+            except Exception:
+                st.error(
+                    "Não foi possível alterar a palavra-passe. "
+                    "O link pode ter expirado."
+                )
+
+    st.stop() 
             st.session_state.utilizador = None
             st.rerun()
 
