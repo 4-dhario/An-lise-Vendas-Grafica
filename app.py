@@ -204,13 +204,9 @@ if recuperar:
                 "e a pasta de spam."
             )
         except Exception as erro:
-            st.error(
-                "O Supabase não conseguiu processar o pedido "
-                "de recuperação."
-            )
+    st.error("Erro ao recuperar a palavra-passe:")
+    st.code(str(erro))
             st.caption(
-                f"Detalhe técnico: {type(erro).__name__}"
-            )
         except Exception:
             st.error(
                 "Não foi possível enviar o e-mail. "
