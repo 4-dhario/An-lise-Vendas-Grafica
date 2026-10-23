@@ -6,12 +6,12 @@ import pandas as pd
 from supabase import create_client
 
 st.set_page_config(
-    page_title="Gestão de Gráfica",
+    page_title="Gestão comercial",
     page_icon="",
     layout="wide"
 )
 
-st.title(" Sistema de Gestão da Gráfica")
+st.title(" Sistema de Gestão")
 st.caption("Gestão comercial e análise de vendas")
 
 # Ligação à base de dados
