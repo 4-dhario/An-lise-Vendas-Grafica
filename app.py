@@ -202,13 +202,6 @@ if st.session_state.utilizador is None:
             except Exception as erro:
                 st.error("Erro ao recuperar a palavra-passe:")
                 st.code(str(erro))
-            st.caption(
-        except Exception:
-            st.error(
-                "Não foi possível enviar o e-mail. "
-                "Verifica o endereço e tenta novamente."
-            )
-            )
 
     st.info(
         "Utiliza uma conta criada em Supabase → "
